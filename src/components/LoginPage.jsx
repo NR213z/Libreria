@@ -1,69 +1,42 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabase";
+import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import { BookOpen, Mail, KeyRound, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail]   = useState("");
-  const [token, setToken]   = useState("");
-  const [step, setStep]     = useState("email"); // "email" | "otp"
+  const { signIn }  = useAuth();
+  const [email, setEmail]     = useState("");
+  const [token, setToken]     = useState("");
+  const [step, setStep]       = useState("email"); // "email" | "otp"
   const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState(null);
+  const [error, setError]     = useState(null);
 
-  /* ── Paso 1: verificar email autorizado y enviar OTP ── */
+  /* ── Paso 1: verificar email y enviar OTP ── */
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    const emailNorm = email.toLowerCase().trim();
-
-    // Verificar si el email está en la lista de autorizados
-    const { data: autorizado, error: checkErr } = await supabase
-      .from("authorized_emails")
-      .select("email")
-      .eq("email", emailNorm)
-      .maybeSingle();
-
-    if (checkErr || !autorizado) {
-      setError("Este email no está autorizado para acceder al sistema.");
-      setLoading(false);
-      return;
+    try {
+      await api.post("/api/auth/request-otp", { email });
+      setStep("otp");
+    } catch (err) {
+      setError(err.message);
     }
-
-    // Enviar código OTP
-    const { error: otpErr } = await supabase.auth.signInWithOtp({
-      email: emailNorm,
-      options: { shouldCreateUser: true },
-    });
-
-    if (otpErr) {
-      setError("No se pudo enviar el código. Intentá de nuevo.");
-      setLoading(false);
-      return;
-    }
-
-    setStep("otp");
     setLoading(false);
   };
 
-  /* ── Paso 2: verificar el código OTP ── */
+  /* ── Paso 2: verificar código ── */
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    const { error: verifyErr } = await supabase.auth.verifyOtp({
-      email: email.toLowerCase().trim(),
-      token: token.trim(),
-      type: "email",
-    });
-
-    if (verifyErr) {
-      setError("Código incorrecto o vencido. Podés solicitar uno nuevo.");
-      setLoading(false);
-      return;
+    try {
+      const { token: jwt, email: userEmail, role } =
+        await api.post("/api/auth/verify-otp", { email, token });
+      signIn(jwt, userEmail, role);
+    } catch (err) {
+      setError(err.message);
     }
-    // El AuthContext detecta el cambio de sesión automáticamente
     setLoading(false);
   };
 
@@ -79,7 +52,7 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold text-slate-800">LibraPedidos</h1>
           <p className="text-sm text-slate-500 mt-1 text-center">
             {step === "email"
-              ? "Ingresá tu email institucional para continuar"
+              ? "Ingresá tu email para continuar"
               : "Revisá tu bandeja de entrada"}
           </p>
         </div>
@@ -87,18 +60,15 @@ export default function LoginPage() {
         {/* Error */}
         {error && (
           <div className="flex items-start gap-2 bg-red-50 text-red-700 rounded-lg p-3 mb-4 text-sm">
-            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <AlertCircle size={15} className="mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Paso 1: Email */}
         {step === "email" ? (
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 block mb-1.5">
-                Email
-              </label>
+              <label className="text-sm font-medium text-slate-700 block mb-1.5">Email</label>
               <div className="relative">
                 <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -121,9 +91,7 @@ export default function LoginPage() {
               {loading ? "Verificando..." : "Enviar código"}
             </button>
           </form>
-
         ) : (
-          /* Paso 2: OTP */
           <form onSubmit={handleOtpSubmit} className="space-y-4">
             <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
               Enviamos un código de 6 dígitos a{" "}
@@ -139,19 +107,15 @@ export default function LoginPage() {
                   type="text"
                   inputMode="numeric"
                   value={token}
-                  onChange={(e) =>
-                    setToken(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
+                  onChange={(e) => setToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   placeholder="000000"
                   required
                   autoFocus
                   maxLength={6}
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-center text-xl tracking-[0.3em] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-center text-xl tracking-[0.35em] font-mono focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 />
               </div>
-              <p className="text-xs text-slate-400 mt-1.5">
-                El código vence en 10 minutos
-              </p>
+              <p className="text-xs text-slate-400 mt-1.5">Válido por 10 minutos</p>
             </div>
             <button
               type="submit"
@@ -166,7 +130,7 @@ export default function LoginPage() {
               onClick={() => { setStep("email"); setToken(""); setError(null); }}
               className="w-full flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
             >
-              <ArrowLeft size={14} /> Cambiar email
+              <ArrowLeft size={13} /> Cambiar email
             </button>
           </form>
         )}

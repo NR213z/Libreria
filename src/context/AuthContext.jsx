@@ -1,62 +1,37 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { api, tokenStore } from "../lib/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]     = useState(null);
-  const [role, setRole]     = useState(null);
+  const [user,    setUser]    = useState(null);
+  const [role,    setRole]    = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchRole = async (userId) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userId)
-      .single();
-
-    if (!data) {
-      // Sin perfil = email no autorizado que saltó el check del frontend
-      await supabase.auth.signOut();
-      return null;
-    }
-    return data.role;
-  };
-
+  /* Verificar sesión existente al iniciar */
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        const r = await fetchRole(session.user.id);
-        setUser(r ? session.user : null);
-        setRole(r);
-      }
-      setLoading(false);
-    });
+    if (!tokenStore.has()) { setLoading(false); return; }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          const r = await fetchRole(session.user.id);
-          setUser(r ? session.user : null);
-          setRole(r);
-        } else {
-          setUser(null);
-          setRole(null);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    api.get("/api/auth/me")
+      .then(({ email, role }) => { setUser({ email }); setRole(role); })
+      .catch(() => tokenStore.remove())
+      .finally(() => setLoading(false));
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const signIn = (token, email, role) => {
+    tokenStore.set(token);
+    setUser({ email });
+    setRole(role);
+  };
+
+  const signOut = () => {
+    tokenStore.remove();
     setUser(null);
     setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, signOut }}>
+    <AuthContext.Provider value={{ user, role, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
