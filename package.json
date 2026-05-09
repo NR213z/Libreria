@@ -13,14 +13,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.14.0",
-    "nodemailer": "^8.0.7",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "resend": "^6.12.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
