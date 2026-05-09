@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [step, setStep]       = useState("email"); // "email" | "otp"
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [devMode, setDevMode] = useState(false);
 
   /* ── Paso 1: verificar email y enviar OTP ── */
   const handleEmailSubmit = async (e) => {
@@ -17,7 +18,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await api.post("/api/auth/request-otp", { email });
+      const res = await api.post("/api/auth/request-otp", { email });
+      setDevMode(!!res.dev);
       setStep("otp");
     } catch (err) {
       setError(err.message);
@@ -93,10 +95,16 @@ export default function LoginPage() {
           </form>
         ) : (
           <form onSubmit={handleOtpSubmit} className="space-y-4">
-            <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
-              Enviamos un código de 6 dígitos a{" "}
-              <strong className="text-slate-800">{email}</strong>
-            </div>
+            {devMode ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <strong>Modo desarrollo:</strong> el código aparece en la consola del servidor (<code>npm run dev</code>).
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
+                Enviamos un código de 6 dígitos a{" "}
+                <strong className="text-slate-800">{email}</strong>
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-slate-700 block mb-1.5">
                 Código de verificación
