@@ -24,7 +24,8 @@ const handleResponse = async (res) => {
 };
 
 export const api = {
-  get:    (url)        => fetch(url, { headers: buildHeaders() }).then(handleResponse),
+  get:    (url)        => fetch(url, { method: "GET",    headers: buildHeaders() }).then(handleResponse),
   post:   (url, body)  => fetch(url, { method: "POST",   headers: buildHeaders(), body: JSON.stringify(body) }).then(handleResponse),
+  put:    (url, body)  => fetch(url, { method: "PUT",    headers: buildHeaders(), body: JSON.stringify(body) }).then(handleResponse),
   delete: (url)        => fetch(url, { method: "DELETE", headers: buildHeaders() }).then(handleResponse),
 };
